@@ -9,6 +9,7 @@ import com.docsehr.flowerhub.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.transaction.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -23,6 +24,7 @@ public class OrderService {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Transactional
     public Order placeAnOrder(Long userId, List<ProductRequest> productRequests) {
         User user = userService.getUser(userId);
         List<Long> productIds = productRequests.stream().map(ProductRequest::getId).collect(Collectors.toList());
@@ -47,6 +49,13 @@ public class OrderService {
 
         AtomicReference<Long> total = new AtomicReference<>((long) 0);
         itemTotalList.forEach( itemTotal -> total.updateAndGet(v -> v + itemTotal));
+
+
+        productRequests.forEach(productRequest -> {
+            Product product = productsById.get(productRequest.getId()).get(0);
+            product.setQuantity(product.getQuantity() - productRequest.getQuantity());
+            productService.updateProduct(product);
+        });
 
         Order order = new Order();
         order.setUserId(userId);
