@@ -24,17 +24,19 @@ public class OrderService {
     @Autowired
     private OrderRepository orderRepository;
 
-    @Transactional
+    @Transactional // roll back if an error occurs
     public Order placeAnOrder(Long userId, List<ProductRequest> productRequests) {
-        User user = userService.getUser(userId);
+        User user = userService.getUser(userId); // verify user exists
         List<Long> productIds = productRequests.stream().map(ProductRequest::getId).collect(Collectors.toList());
         List<Product> products = productService.getProductsByIds(productIds);
+        // validate product ids
         if(productIds.size() != products.size()) {
             throw new IllegalArgumentException("Invalid product IDs");
         }
 
         Map<Long, List<Product>> productsById = products.stream().collect(Collectors.groupingBy(Product::getId));
 
+        // validate product quantity
         productRequests.forEach(productRequest -> {
             Product product = productsById.get(productRequest.getId()).get(0);
             if (productRequest.getQuantity() > product.getQuantity()) {
@@ -42,6 +44,7 @@ public class OrderService {
             }
         });
 
+        // get total
         List<Long> itemTotalList = productRequests.stream().map(productRequest -> {
             Product product = productsById.get(productRequest.getId()).get(0);
             return productRequest.getQuantity() * product.getPrice();
@@ -58,6 +61,7 @@ public class OrderService {
             productService.updateProduct(product);
         });
 
+        // finally place an order
         Order order = new Order();
         order.setUserId(userId);
         order.setProducts(products);
