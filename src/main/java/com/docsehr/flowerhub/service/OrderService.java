@@ -51,6 +51,7 @@ public class OrderService {
         itemTotalList.forEach( itemTotal -> total.updateAndGet(v -> v + itemTotal));
 
 
+        // update product quantity
         productRequests.forEach(productRequest -> {
             Product product = productsById.get(productRequest.getId()).get(0);
             product.setQuantity(product.getQuantity() - productRequest.getQuantity());
