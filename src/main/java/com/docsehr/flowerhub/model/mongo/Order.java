@@ -1,5 +1,6 @@
 package com.docsehr.flowerhub.model.mongo;
 
+import com.docsehr.flowerhub.model.dto.ProductDTO;
 import com.docsehr.flowerhub.model.mysql.Product;
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -14,7 +15,7 @@ public class Order {
     @Id
     private String id;
     private Long userId;
-    private List<Product> products = new ArrayList<>();
+    private List<ProductDTO> products = new ArrayList<>();
     private Long total; // in cents
     // Getters and Setters
 }

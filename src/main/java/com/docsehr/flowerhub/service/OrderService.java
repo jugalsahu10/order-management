@@ -1,7 +1,6 @@
 package com.docsehr.flowerhub.service;
 
-import com.docsehr.flowerhub.model.dto.ProductRequest;
-import com.docsehr.flowerhub.model.mongo.OldProduct;
+import com.docsehr.flowerhub.model.dto.ProductDTO;
 import com.docsehr.flowerhub.model.mongo.Order;
 import com.docsehr.flowerhub.model.mysql.Product;
 import com.docsehr.flowerhub.model.mysql.User;
@@ -12,61 +11,64 @@ import org.springframework.stereotype.Service;
 import javax.transaction.Transactional;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
-    @Autowired
-    private UserService userService;
-    @Autowired
-    private ProductService productService;
-    @Autowired
-    private OrderRepository orderRepository;
+    @Autowired private UserService userService;
+    @Autowired private ProductService productService;
+    @Autowired private OrderRepository orderRepository;
 
-    @Transactional // roll back if an error occurs
-    public Order placeAnOrder(Long userId, List<ProductRequest> productRequests) {
-        User user = userService.getUser(userId); // verify user exists
-        List<Long> productIds = productRequests.stream().map(ProductRequest::getId).collect(Collectors.toList());
+    @Transactional
+    // roll back if an error occurs
+    public Order placeOrder(Long userId, List<ProductDTO> productDTOS) {
+        userService.validateUser(userId);
+
+        List<Long> productIds = productDTOS.stream().map(ProductDTO::getProductId).collect(Collectors.toList());
         List<Product> products = productService.getProductsByIds(productIds);
         // validate product ids
-        if(productIds.size() != products.size()) {
+        if (productIds.size() != products.size()) {
             throw new IllegalArgumentException("Invalid product IDs");
         }
-
         Map<Long, List<Product>> productsById = products.stream().collect(Collectors.groupingBy(Product::getId));
+        validateProductQuantity(productDTOS, productsById);
+        Long orderTotal = getOrderTotal(productDTOS, productsById);
+        updateProductQuantity(productDTOS, productsById);
 
-        // validate product quantity
-        productRequests.forEach(productRequest -> {
-            Product product = productsById.get(productRequest.getId()).get(0);
-            if (productRequest.getQuantity() > product.getQuantity()) {
-                throw new RuntimeException("Insufficient product quantity");
-            }
-        });
+        Order order = getOrder(userId, productDTOS, orderTotal);
+        return orderRepository.save(order);
+    }
 
-        // get total
-        List<Long> itemTotalList = productRequests.stream().map(productRequest -> {
-            Product product = productsById.get(productRequest.getId()).get(0);
-            return productRequest.getQuantity() * product.getPrice();
-        }).collect(Collectors.toList());
-
-        AtomicReference<Long> total = new AtomicReference<>((long) 0);
-        itemTotalList.forEach( itemTotal -> total.updateAndGet(v -> v + itemTotal));
-
-
-        // update product quantity
-        productRequests.forEach(productRequest -> {
-            Product product = productsById.get(productRequest.getId()).get(0);
-            product.setQuantity(product.getQuantity() - productRequest.getQuantity());
+    private void updateProductQuantity(List<ProductDTO> productDTOS, Map<Long, List<Product>> productsById) {
+        productDTOS.forEach(productDTO -> {
+            Product product = productsById.get(productDTO.getProductId()).get(0);
+            product.setQuantity(product.getQuantity() - productDTO.getQuantity());
             productService.updateProduct(product);
         });
+    }
 
-        // finally place an order
+    private static Order getOrder(Long userId, List<ProductDTO> productDTOS, Long total) {
         Order order = new Order();
         order.setUserId(userId);
-        order.setProducts(products);
-        order.setTotal(total.get());
-        return orderRepository.save(order);
+        order.setProducts(productDTOS);
+        order.setTotal(total);
+        return order;
+    }
+
+    private static Long getOrderTotal(List<ProductDTO> productDTOS, Map<Long, List<Product>> productsById) {
+        return productDTOS.stream().map(productDTO -> {
+            Product product = productsById.get(productDTO.getProductId()).get(0);
+            return productDTO.getQuantity() * product.getPrice();
+        }).reduce(0L, Long::sum);
+    }
+
+    private static void validateProductQuantity(List<ProductDTO> productDTOS, Map<Long, List<Product>> productsById) {
+        for (ProductDTO productDTO : productDTOS) {
+            Product product = productsById.get(productDTO.getProductId()).get(0);
+            if (productDTO.getQuantity() > product.getQuantity()) {
+                throw new RuntimeException("Insufficient product quantity for product ID: " + productDTO.getProductId());
+            }
+        }
     }
 
     public List<Order> getAllOrdersByUserId(Long userId) {
@@ -74,7 +76,7 @@ public class OrderService {
     }
 
     public Order getOrderById(String orderId) {
-        return orderRepository.findById(orderId).get();
+        return orderRepository.findById(orderId).orElseThrow(() -> new RuntimeException("Order not found for ID: " + orderId));
     }
 }
 

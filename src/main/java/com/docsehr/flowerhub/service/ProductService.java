@@ -5,12 +5,17 @@ import com.docsehr.flowerhub.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.transaction.Transactional;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class ProductService {
     @Autowired private ProductRepository productRepository;
+
+    public List<Product> getAllProducts() {
+        return productRepository.findAll();
+    }
 
     public Product getProduct(Long id) {
         return productRepository.findById(id).orElseThrow(() -> new RuntimeException("Product not found"));
@@ -31,6 +36,7 @@ public class ProductService {
         return productRepository.save(product);
     }
 
+    @Transactional
     public Product updateProduct(Product product) {
         Optional<Product> dbProduct = productRepository.findById(product.getId());
         if (!dbProduct.isPresent()) {

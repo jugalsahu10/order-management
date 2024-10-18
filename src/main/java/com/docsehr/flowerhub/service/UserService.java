@@ -5,14 +5,23 @@ import com.docsehr.flowerhub.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
 public class UserService {
     @Autowired private UserRepository userRepository;
 
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
     public User getUser(Long id) {
         return userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    public void validateUser(Long id) {
+        userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     public User addUser(User user) {
